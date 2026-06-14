@@ -22,3 +22,8 @@ frontend/.env
 # OS / Editor
 # =====================
 .DS_Store
+
+# Custom Run & Temp files
+back.txt
+front.tst
+mermaid.mmd
