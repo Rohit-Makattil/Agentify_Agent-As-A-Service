@@ -13,17 +13,47 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # ✅ Helper to wrap the user's prompt with clear instructions
 # -------------------------------------------------------------
 def prompt_with_instruction(user_prompt: str, theme: str = "") -> str:
-    theme_instruction = f"\nCRITICAL DESIGN THEME: You MUST heavily style the CSS to match a '{theme}' aesthetic. Use explicit color palettes, background gradients, and modern box-shadows that fit this exact theme." if theme else ""
+    theme_instruction = f"\nCRITICAL DESIGN THEME: You MUST heavily style the CSS to match a '{theme}' aesthetic. Use explicit color palettes, background gradients, modern box-shadows, and fonts that fit this exact theme. If it is a dark theme, ensure the background is dark and text is light." if theme else ""
     return (
         "You are an expert frontend web developer and UI/UX designer. "
-        "Generate clean, highly aesthetic, production-ready HTML, CSS, and JavaScript for a website. "
+        "Generate clean, highly aesthetic, production-ready HTML, CSS, and JavaScript for a website.\n"
         f"{theme_instruction}\n"
-        "IMPORTANT: The design MUST reflect the theme specified (colors, fonts, style). DO NOT USE GENERIC WHITE BACKGROUNDS UNLESS SPECIFIED. "
-        "Keep code concise but complete. Separate each file clearly:\n"
-        "```index.html\n<!-- HTML -->\n```\n"
-        "```style.css\n/* CSS */\n```\n"
-        "```script.js\n// JS\n```\n\n"
+        "CRITICAL INSTRUCTIONS TO PREVENT BASIC DESIGNS:\n"
+        "1. EXPAND ON SHORT PROMPTS: Even if the user's prompt is very short, YOU MUST intelligently expand it into a FULL, PREMIUM landing page. Do not just output one or two sentences.\n"
+        "2. REQUIRED SECTIONS: Automatically include a sleek Navbar, a visually stunning Hero section with calls-to-action, at least 2 content sections (like Features, Services, or About), and a modern Footer.\n"
+        "3. RICH AESTHETICS: Use beautiful typography, smooth hover effects, micro-animations, padding, and modern layout structures (flexbox/grid). Make it look like an expensive, award-winning website.\n"
+        "4. DEFAULT CONTENT: Use high-quality placeholder text, creative dummy data, and font-awesome icons to make the interface feel populated and alive. Do not leave the page empty.\n"
+        "5. IMPORTANT: The design MUST reflect the theme specified. DO NOT USE GENERIC STYLES.\n"
+        "Keep code concise but complete. Separate each file clearly using the exact markdown tags below:\n"
+        "```html\n<!-- HTML -->\n```\n"
+        "```css\n/* CSS */\n```\n"
+        "```javascript\n// JS\n```\n\n"
         f"User prompt: {user_prompt}"
+    )
+
+def modify_prompt_with_instruction(current_files: dict, edit_prompt: str, theme: str = "") -> str:
+    theme_instruction = f" CRITICAL THEME REQUIREMENT: Ensure the updates strictly maintain and enhance the '{theme}' aesthetic (colors, backgrounds, layout)." if theme else ""
+    
+    files_context = ""
+    for filename, content in current_files.items():
+        files_context += f"file: {filename}\n```\n{content}\n```\n\n"
+
+    return (
+        "You are an expert frontend web developer. You are given an existing website's HTML, CSS, and JS code. "
+        "Your task is to MODIFY the existing code based on the user's specific instruction. "
+        f"USER INSTRUCTION: {edit_prompt}\n\n"
+        "GUIDELINES:\n"
+        "1. ONLY modify parts of the code relevant to the instruction.\n"
+        "2. Preserve the rest of the structure, layout, and content.\n"
+        "3. Ensure the code remains clean, valid, and fully functional.\n"
+        f"4.{theme_instruction}\n"
+        "5. Return the COMPLETE content for all three files even if some parts haven't changed, to maintain consistency.\n\n"
+        "EXISTING CODE:\n"
+        f"{files_context}"
+        "\nIMPORTANT: Separate each file clearly using the exact markdown tags below:\n"
+        "```html\n<!-- HTML -->\n```\n"
+        "```css\n/* CSS */\n```\n"
+        "```javascript\n// JS\n```"
     )
 
 
@@ -74,10 +104,13 @@ def call_gemini(prompt: str) -> str:
         raise ValueError("GEMINI_API_KEY not found in environment.")
     genai.configure(api_key=api_key)
 
-    # Try working models in order of preference
+    # Try working models in order of preference based on current API availability
     models_to_try = [
-        "models/gemini-2.5-flash",      # Working - primary
-        "models/gemini-2.0-flash",      # Fallback
+        "gemini-2.0-flash-lite",      # Fast, highest rate limits
+        "gemini-2.0-flash",           # High quality, good limits
+        "gemini-2.5-flash-lite",      # New but good limits
+        "gemini-flash-latest",        # Dynamic fallback
+        "gemini-2.5-flash"            # Lowest daily limit, try last
     ]
 
     last_error = None
@@ -85,24 +118,56 @@ def call_gemini(prompt: str) -> str:
         try:
             print(f"Trying model: {model_name}")
             model = genai.GenerativeModel(model_name)
-            # Use a thread with 120s timeout to prevent 504 Deadline Exceeded hanging forever
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(_stream_gemini, model, prompt)
-                result = future.result(timeout=120)
-            print(f"✅ Success with model: {model_name}")
-            return result
+            
+            # Add RPM rate-limit auto-retry loop
+            for attempt in range(2):
+                try:
+                    # Use a thread with 120s timeout to prevent 504 Deadline Exceeded hanging forever
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(_stream_gemini, model, prompt)
+                        result = future.result(timeout=120)
+                    print(f"✅ Success with model: {model_name}")
+                    return result
+                except Exception as inner_e:
+                    inner_err_str = str(inner_e).lower()
+                    if ("429" in inner_err_str or "quota" in inner_err_str) and attempt == 0:
+                        import re, time
+                        match = re.search(r'retry in (\d+\.?\d*)s', inner_err_str)
+                        if match:
+                            delay = float(match.group(1)) + 1
+                            if delay <= 15.0:
+                                print(f"⏳ Burst RPM hit. Auto-pausing for {delay:.1f}s...")
+                                time.sleep(delay)
+                                continue
+                            else:
+                                print(f"⚠️ Exhausted hard limit (Wait time {delay:.1f}s). Skipping to next model instead of hanging!")
+                                raise inner_e  # Escalate immediately
+                    raise inner_e  # Escalate out of inner loop if not recoverable or already retried
+
         except concurrent.futures.TimeoutError:
             last_error = f"{model_name} timed out after 120s"
             print(f"⚠️ {last_error}, trying next model...")
             continue
         except Exception as e:
-            err_str = str(e)
-            # Only fall through to next model on timeout/deadline errors
-            if "504" in err_str or "deadline" in err_str.lower() or "timed out" in err_str.lower():
+            err_str = str(e).lower()
+            # Catch timeouts, missing models, and generic auth dropouts to auto-failover
+            if any(err in err_str for err in ["504", "deadline", "timed out", "404", "not found"]):
                 last_error = err_str
-                print(f"⚠️ {model_name} deadline error, trying next model...")
+                print(f"⚠️ {model_name} failed ({err_str[:50]}...), cascading to next model...")
+                import time
+                time.sleep(1) # Nano backoff
                 continue
-            raise  # Re-raise all other errors (quota, auth, etc.)
+            
+            # If we STILL have a quota error here, it means we exhausted retries or hit a hard Daily cap
+            if "429" in err_str or "quota" in err_str:
+                last_error = err_str
+                print(f"⚠️ {model_name} quota exhausted critically, cascading to next model...")
+                continue
+                
+            raise  # Re-raise explicit catastrophic errors (like bad API keys)
+
+
+
 
     raise RuntimeError(f"All Gemini models failed. Last error: {last_error}")
 
@@ -131,6 +196,26 @@ def generate_code_from_prompt(user_prompt: str, theme: str = "") -> dict:
     files = parse_files_from_model_text(response_text)
     return {'files': files, 'raw': response_text}
 
+def modify_code_from_prompt(current_files: dict, edit_prompt: str, theme: str = "") -> dict:
+    full_prompt = modify_prompt_with_instruction(current_files, edit_prompt, theme)
+
+    if MODEL_TYPE == "openai":
+        response_text = call_openai(full_prompt)
+    elif MODEL_TYPE == "local":
+        response_text = call_local_model(full_prompt)
+    else:
+        response_text = call_gemini(full_prompt)
+
+    files = parse_files_from_model_text(response_text)
+    
+    # Merge with current files if any were missed by the LLM
+    final_files = current_files.copy()
+    for filename, content in files.items():
+        if content.strip():
+            final_files[filename] = content
+            
+    return {'files': final_files, 'raw': response_text}
+
 
 # -------------------------------------------------------------
 # ✅ Extract HTML, CSS, JS from the model's output
@@ -139,9 +224,10 @@ def parse_files_from_model_text(output_text: str) -> dict:
     files = {}
 
     import re
-    html_match = re.search(r"```index\.html\s*([\s\S]*?)```", output_text)
-    css_match = re.search(r"```style\.css\s*([\s\S]*?)```", output_text)
-    js_match = re.search(r"```script\.js\s*([\s\S]*?)```", output_text)
+    # Try multiple common formats for code blocks
+    html_match = re.search(r"```(?:html|index\.html)\s*([\s\S]*?)```", output_text, re.IGNORECASE)
+    css_match = re.search(r"```(?:css|style\.css)\s*([\s\S]*?)```", output_text, re.IGNORECASE)
+    js_match = re.search(r"```(?:(?:java)?script|js|script\.js)\s*([\s\S]*?)```", output_text, re.IGNORECASE)
 
     if html_match:
         files["index.html"] = html_match.group(1).strip()
@@ -151,8 +237,13 @@ def parse_files_from_model_text(output_text: str) -> dict:
         files["script.js"] = js_match.group(1).strip()
     
     # Fallback: if no code blocks found, check if raw text looks like HTML
-    if not files and ("<html" in output_text.lower() or "<!doctype html" in output_text.lower()):
-        files["index.html"] = output_text.strip()
+    if not files:
+        # Check if the entire response is an HTML block
+        if "<html" in output_text.lower() or "<!doctype html" in output_text.lower():
+            # Try to strip markdown quotes if it wrapped the entire thing in generic ```
+            content = re.sub(r"^```.*\n", "", output_text)
+            content = re.sub(r"```$", "", content).strip()
+            files["index.html"] = content
             
     return files
 

@@ -2,27 +2,27 @@ function Footer() {
   const teamMembers = [
     {
       name: 'Aastha Dubey',
-      instagram: '#',
-      linkedin: '#',
-      github: '#'
+      instagram: 'https://www.instagram.com/aaastha.d?igsh=MWl1Z2h0ZWh4Ym13aA=',
+      linkedin: 'https://www.linkedin.com/in/aastha-dubey-16a942229?utm_source=share_via&utm_content=profile&utm_medium=member_android',
+      github: 'https://github.com/Aastha3105'
     },
     {
       name: 'Paridhi Gupta',
-      instagram: '#',
-      linkedin: '#',
-      github: '#'
+      instagram: 'https://www.instagram.com/pariiidhiiii?igsh=ZTluNnlkcHUxdjYy',
+      linkedin: 'https://www.linkedin.com/in/paridhi-guptaa?utm_source=share_via&utm_content=profile&utm_medium=member_ios',
+      github: 'https://github.com/paridhiiguptaa/'
     },
     {
       name: 'Shriya Jain',
-      instagram: '#',
-      linkedin: '#',
-      github: '#'
+      instagram: 'https://www.instagram.com/shriyaa.jainn/',
+      linkedin: 'https://www.linkedin.com/in/shriyajain08/',
+      github: 'https://github.com/Shriyajain08'
     },
     {
       name: 'Rohit Makattil',
-      instagram: '#',
-      linkedin: '#',
-      github: '#'
+      instagram: 'https://www.instagram.com/makattil.rohit?igsh=MXA3amplNW9nN3Zybg%3D%3D&utm_source=qr',
+      linkedin: 'https://www.linkedin.com/in/rohit-makattil-b553852a3?utm_source=share_via&utm_content=profile&utm_medium=member_ios',
+      github: 'https://github.com/Rohit-Makattil'
     }
   ];
 

@@ -27,7 +27,7 @@ from email_agent.email_generator import generate_complete_email
 from email_agent.email_sender import send_email_now, schedule_email, get_scheduled_emails
 from email_agent.gsheets_tracker import record_email_response
 from simple_csv_email_agent import SimpleEmailExtractor
-from model_runner import generate_code_from_prompt
+from model_runner import generate_code_from_prompt, modify_code_from_prompt
 from fastapi.responses import HTMLResponse
 
 # Global cache for CSV uploads
@@ -52,15 +52,16 @@ class SocialPostRequest(BaseModel):
     platforms: List[str]
     image_base64: Optional[str] = None
     # Optional credentials overrides
-    tw_api_key: Optional[str] = ""
-    tw_api_secret: Optional[str] = ""
-    tw_access_token: Optional[str] = ""
-    tw_access_secret: Optional[str] = ""
     ig_username: Optional[str] = ""
     ig_password: Optional[str] = ""
 
 class WebsiteGenerateRequest(BaseModel):
     prompt: str
+    theme: str = ""
+
+class WebsiteModifyRequest(BaseModel):
+    current_files: dict
+    edit_prompt: str
     theme: str = ""
 
 # --- EMAIL MODELS ---
@@ -159,6 +160,15 @@ def generate_website(request: WebsiteGenerateRequest):
         logger.error(f"Website generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/modify")
+def modify_website(request: WebsiteModifyRequest):
+    try:
+        result = modify_code_from_prompt(request.current_files, request.edit_prompt, request.theme)
+        return result
+    except Exception as e:
+        logger.error(f"Website modification error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- SOCIAL MEDIA ENDPOINTS ---
 
 @app.post("/social/generate")
@@ -216,10 +226,6 @@ def post_social(request: SocialPostRequest):
                 platform=platform,
                 caption=request.caption,
                 image=img,
-                tw_api_key=request.tw_api_key,
-                tw_api_secret=request.tw_api_secret,
-                tw_access_token=request.tw_access_token,
-                tw_access_secret=request.tw_access_secret,
                 ig_username=request.ig_username,
                 ig_password=request.ig_password
             )

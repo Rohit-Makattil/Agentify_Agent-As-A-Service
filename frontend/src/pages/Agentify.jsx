@@ -210,7 +210,7 @@ const Agentify = () => {
       promises.push(
         (async () => {
           try {
-            const postData = await unifiedAgentService.generatePost(userGoal, ['twitter', 'linkedin', 'facebook', 'instagram']);
+            const postData = await unifiedAgentService.generatePost(userGoal, ['instagram']);
             // postData = { success: true, content: { captions: {...}, image_prompt: "..." } }
             const contentData = postData.content || postData; // Handle both wrapped and unwrapped responses
             let imageData = null;
@@ -538,7 +538,7 @@ const Agentify = () => {
                         </div>
                       )}
                       <div style={{ fontStyle: 'italic', opacity: 0.9 }}>
-                        "{data.content?.captions?.twitter || 'Content generated'}"
+                        "{data.content?.captions?.instagram || 'Content generated'}"
                       </div>
                     </div>
                   )}

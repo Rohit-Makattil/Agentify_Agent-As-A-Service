@@ -12,7 +12,6 @@ function PostCreator({ initialData }) {
   const [topic, setTopic] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState({
-    twitter: true,
     instagram: true
   });
 
@@ -24,16 +23,12 @@ function PostCreator({ initialData }) {
 
   // Editable Captions
   const [captions, setCaptions] = useState({
-    twitter: '',
     instagram: ''
   });
 
   // Credentials
   const [showCredentials, setShowCredentials] = useState(false);
-  const [twApiKey, setTwApiKey] = useState('');
-  const [twApiSecret, setTwApiSecret] = useState('');
-  const [twAccessToken, setTwAccessToken] = useState('');
-  const [twAccessSecret, setTwAccessSecret] = useState('');
+
   const [igUsername, setIgUsername] = useState('agentify_mp');
   const [igPassword, setIgPassword] = useState('');
 
@@ -126,10 +121,6 @@ function PostCreator({ initialData }) {
           caption: caption,
           platforms: [platform],
           image_base64: generatedImage ? generatedImage : null,
-          tw_api_key: twApiKey,
-          tw_api_secret: twApiSecret,
-          tw_access_token: twAccessToken,
-          tw_access_secret: twAccessSecret,
           ig_username: igUsername,
           ig_password: igPassword
         };
@@ -194,8 +185,8 @@ function PostCreator({ initialData }) {
             </p>
             <div className="hero-stats">
               <div className="stat-item">
-                <div className="stat-number">2</div>
-                <div className="stat-label">Platforms</div>
+                <div className="stat-number">1</div>
+                <div className="stat-label">Platform</div>
               </div>
               <div className="stat-item">
                 <div className="stat-number">1</div>
@@ -267,15 +258,6 @@ function PostCreator({ initialData }) {
               <div className="input-group">
                 <label className="input-label">Select Platforms</label>
                 <div className="platform-selector">
-                  <label className={`platform-card ${selectedPlatforms.twitter ? 'active' : ''}`}>
-                    <input
-                      type="checkbox"
-                      checked={selectedPlatforms.twitter}
-                      onChange={() => handlePlatformChange('twitter')}
-                    />
-                    <i className="fab fa-twitter"></i>
-                    <span>Twitter</span>
-                  </label>
                   <label className={`platform-card ${selectedPlatforms.instagram ? 'active' : ''}`}>
                     <input
                       type="checkbox"
@@ -304,38 +286,6 @@ function PostCreator({ initialData }) {
                 {showCredentials && (
                   <div className="expander-content">
                     <div className="cred-group">
-                      <p className="cred-title">Twitter / X</p>
-                      <input
-                        type="password"
-                        placeholder="API Key"
-                        className="holo-input small"
-                        value={twApiKey}
-                        onChange={(e) => setTwApiKey(e.target.value)}
-                      />
-                      <input
-                        type="password"
-                        placeholder="API Secret"
-                        className="holo-input small"
-                        value={twApiSecret}
-                        onChange={(e) => setTwApiSecret(e.target.value)}
-                      />
-                      <input
-                        type="password"
-                        placeholder="Access Token"
-                        className="holo-input small"
-                        value={twAccessToken}
-                        onChange={(e) => setTwAccessToken(e.target.value)}
-                      />
-                      <input
-                        type="password"
-                        placeholder="Access Secret"
-                        className="holo-input small"
-                        value={twAccessSecret}
-                        onChange={(e) => setTwAccessSecret(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="cred-group" style={{ marginTop: '15px' }}>
                       <p className="cred-title">Instagram</p>
                       <input
                         type="text"

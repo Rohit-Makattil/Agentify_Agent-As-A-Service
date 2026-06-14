@@ -42,7 +42,7 @@ export const unifiedAgentService = {
     },
 
     // Social Media Agent
-    generatePost: async (prompt, platforms = ['twitter', 'linkedin']) => {
+    generatePost: async (prompt, platforms = ['instagram']) => {
         try {
             // The backend expects 'theme', 'topic', 'description', 'platforms' array
             const response = await api.post('/social/generate', {

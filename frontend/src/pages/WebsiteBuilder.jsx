@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import axios from 'axios';
+import '../assets/css/edit-mode-addon.css';
 
 function WebsiteBuilder({ initialData }) {
   const context = useOutletContext();
@@ -12,9 +13,15 @@ function WebsiteBuilder({ initialData }) {
   const [generatedCode, setGeneratedCode] = useState({ 'index.html': '', 'style.css': '', 'script.js': '' });
   const [activeTab, setActiveTab] = useState('index.html');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isModifying, setIsModifying] = useState(false);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [editHistory, setEditHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [showCodePanel, setShowCodePanel] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const abortControllerRef = useRef(null);
+  const downloadMenuRef = useRef(null);
 
   // Two separate iframe refs
   const previewIframeRef = useRef(null);
@@ -124,9 +131,56 @@ function WebsiteBuilder({ initialData }) {
 
       setGeneratedCode(files);
 
-      const processedHtml = processGeneratedHtml(files['index.html'] || '<h1>No HTML generated</h1>');
+      const fullHtml = constructFullHtml(files);
+      setPreview(fullHtml);
+      setShowCodePanel(true);
+      showPopup('Website created successfully!', 'success');
+    } catch (error) {
+      if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+        showPopup('Website generation has been terminated.', 'warning');
+      } else {
+        console.error(error);
+        showNotification('Error generating website. Make sure backend is running.', 'error');
+      }
+    } finally {
+      setIsGenerating(false);
+      abortControllerRef.current = null;
+    }
+  };
 
-      const fullHtml = `<!doctype html>
+  const handleModify = async (e) => {
+    if (e) e.preventDefault();
+    if (!editPrompt.trim()) return;
+
+    setIsModifying(true);
+    try {
+      const response = await axios.post('http://localhost:5000/modify', {
+        current_files: generatedCode,
+        edit_prompt: editPrompt,
+        theme: theme
+      });
+
+      const files = response.data.files;
+      setGeneratedCode(files);
+
+      const fullHtml = constructFullHtml(files);
+      setPreview(fullHtml);
+      
+      setEditHistory(prev => [editPrompt, ...prev]);
+      setEditPrompt('');
+      showPopup('Website updated successfully!', 'success');
+    } catch (error) {
+      console.error(error);
+      showNotification('Error updating website. Check backend connection.', 'error');
+    } finally {
+      setIsModifying(false);
+    }
+  };
+
+  const constructFullHtml = (files) => {
+    const processedHtml = processGeneratedHtml(files['index.html'] || '<h1>No HTML generated</h1>');
+
+    return `<!doctype html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -185,21 +239,6 @@ function WebsiteBuilder({ initialData }) {
   <script>${files['script.js'] || ''}</script>
 </body>
 </html>`;
-
-      setPreview(fullHtml);
-      setShowCodePanel(true);
-      showPopup('Website created successfully!', 'success');
-    } catch (error) {
-      if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
-        showPopup('Website generation has been terminated.', 'warning');
-      } else {
-        console.error(error);
-        showNotification('Error generating website. Make sure backend is running.', 'error');
-      }
-    } finally {
-      setIsGenerating(false);
-      abortControllerRef.current = null;
-    }
   };
 
   const handleTerminate = () => {
@@ -214,6 +253,21 @@ function WebsiteBuilder({ initialData }) {
     processed = processed.replace(/href="(?!#|http|javascript)/g, 'href="#');
     return processed;
   };
+
+  useEffect(() => {
+    if (initialData && initialData.files) {
+      setGeneratedCode(initialData.files);
+      const fullHtml = constructFullHtml(initialData.files);
+      setPreview(fullHtml);
+      setShowCodePanel(true);
+    } else if (initialData && initialData.generatedCode) {
+      // Fallback for Agentify.jsx storage
+      setGeneratedCode(initialData.generatedCode);
+      const fullHtml = constructFullHtml(initialData.generatedCode);
+      setPreview(fullHtml);
+      setShowCodePanel(true);
+    }
+  }, [initialData]);
 
   const showPopup = (message, type = 'info') => {
     const popup = document.createElement('div');
@@ -233,15 +287,30 @@ function WebsiteBuilder({ initialData }) {
     }, 3000);
   };
 
-  const downloadCode = () => {
+  const downloadCode = (filename) => {
+    const fileMap = {
+      'index.html': { content: generatedCode['index.html'], type: 'text/html' },
+      'style.css':  { content: generatedCode['style.css'],  type: 'text/css' },
+      'script.js':  { content: generatedCode['script.js'],  type: 'text/javascript' },
+    };
+    const target = fileMap[filename];
+    if (!target || !target.content) return;
     const element = document.createElement('a');
-    const file = new Blob([generatedCode['index.html']], { type: 'text/html' });
+    const file = new Blob([target.content], { type: target.type });
     element.href = URL.createObjectURL(file);
-    element.download = 'index.html';
+    element.download = filename;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
-    showNotification('Code downloaded!', 'success');
+    setShowDownloadMenu(false);
+    showNotification(`${filename} downloaded!`, 'success');
+  };
+
+  const downloadAllCode = () => {
+    downloadCode('index.html');
+    setTimeout(() => downloadCode('style.css'), 300);
+    setTimeout(() => downloadCode('script.js'), 600);
+    setShowDownloadMenu(false);
   };
 
   const toggleFullscreen = () => {
@@ -459,6 +528,105 @@ function WebsiteBuilder({ initialData }) {
                   </div>
                 )}
               </div>
+
+              {preview && (
+                <div className="edit-website-section animate-fade-in" style={{ marginTop: '24px' }}>
+                  <div className="edit-box-enhanced">
+
+                    {/* Header */}
+                    <div className="edit-header">
+                      <div className="edit-title">
+                        <div className="edit-title-icon">
+                          <i className="fas fa-wand-magic-sparkles"></i>
+                        </div>
+                        <div>
+                          <span className="edit-title-text">AI Edit Mode</span>
+                          <span className="edit-title-subtitle">Describe changes to apply to the preview</span>
+                        </div>
+                      </div>
+                      {editHistory.length > 0 && (
+                        <button
+                          className="history-toggle-btn"
+                          onClick={() => setShowHistory(!showHistory)}
+                        >
+                          <i className={`fas fa-${showHistory ? 'chevron-up' : 'clock-rotate-left'}`}></i>
+                          <span>{showHistory ? 'Hide' : `History (${editHistory.length})`}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Quick Suggestion Chips */}
+                    <div className="edit-chips">
+                      {['Change color scheme', 'Add animations', 'Add contact form', 'Make it dark mode'].map(chip => (
+                        <button
+                          key={chip}
+                          className="edit-chip"
+                          onClick={() => setEditPrompt(prev => prev ? `${prev}, ${chip.toLowerCase()}` : chip)}
+                          disabled={isModifying}
+                        >
+                          {chip}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Textarea + Button */}
+                    <div className="edit-input-wrapper">
+                      <textarea
+                        className="edit-textarea"
+                        placeholder="e.g., 'Change the header gradient to purple', 'Add a pricing section with 3 tiers', 'Make the font bigger'..."
+                        value={editPrompt}
+                        onChange={(e) => setEditPrompt(e.target.value)}
+                        disabled={isModifying}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !isModifying && editPrompt.trim()) {
+                            handleModify();
+                          }
+                        }}
+                      ></textarea>
+                      <div className="edit-actions-row">
+                        <span className="edit-hint"><i className="fas fa-keyboard"></i> Ctrl+Enter to apply</span>
+                        <button
+                          className="apply-changes-btn"
+                          onClick={handleModify}
+                          disabled={isModifying || !editPrompt.trim()}
+                        >
+                          {isModifying ? (
+                            <>
+                              <i className="fas fa-spinner fa-spin"></i>
+                              <span>Applying Changes...</span>
+                            </>
+                          ) : (
+                            <>
+                              <i className="fas fa-bolt"></i>
+                              <span>Apply Changes</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Edit History Panel */}
+                    {showHistory && editHistory.length > 0 && (
+                      <div className="edit-history-panel">
+                        <div className="history-label"><i className="fas fa-clock-rotate-left"></i> Recent Edits</div>
+                        <div className="history-list">
+                          {editHistory.map((item, idx) => (
+                            <div
+                              key={idx}
+                              className="history-item"
+                              onClick={() => setEditPrompt(item)}
+                              title="Click to reuse this prompt"
+                            >
+                              <i className="fas fa-rotate-left"></i>
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -470,10 +638,42 @@ function WebsiteBuilder({ initialData }) {
                   <i className="fas fa-code"></i>
                   <span>Generated Code</span>
                 </div>
-                <button className="download-btn-enhanced" onClick={downloadCode}>
-                  <i className="fas fa-download"></i>
-                  <span>Download</span>
-                </button>
+                {/* Download Dropdown */}
+                <div className="download-dropdown-wrapper" ref={downloadMenuRef}>
+                  <button
+                    className="download-btn-enhanced"
+                    onClick={() => setShowDownloadMenu(prev => !prev)}
+                  >
+                    <i className="fas fa-download"></i>
+                    <span>Download</span>
+                    <i className={`fas fa-chevron-${showDownloadMenu ? 'up' : 'down'} download-caret`}></i>
+                  </button>
+                  {showDownloadMenu && (
+                    <div className="download-dropdown-menu">
+                      <button className="download-dropdown-item" onClick={() => downloadCode('index.html')}>
+                        <i className="fab fa-html5" style={{ color: '#e44d26' }}></i>
+                        <span>HTML File</span>
+                        <span className="file-ext">.html</span>
+                      </button>
+                      <button className="download-dropdown-item" onClick={() => downloadCode('style.css')}>
+                        <i className="fab fa-css3-alt" style={{ color: '#2965f1' }}></i>
+                        <span>CSS File</span>
+                        <span className="file-ext">.css</span>
+                      </button>
+                      <button className="download-dropdown-item" onClick={() => downloadCode('script.js')}>
+                        <i className="fab fa-js-square" style={{ color: '#f0db4f' }}></i>
+                        <span>JavaScript File</span>
+                        <span className="file-ext">.js</span>
+                      </button>
+                      <div className="download-dropdown-divider"></div>
+                      <button className="download-dropdown-item download-all" onClick={downloadAllCode}>
+                        <i className="fas fa-file-zipper"></i>
+                        <span>Download All</span>
+                        <span className="file-ext">3 files</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="code-tabs-enhanced">
