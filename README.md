@@ -40,9 +40,27 @@
 
 ---
 
+## 📸 Screenshots
+
+### 🏠 Command Center (Home)
+![Agentify Command Center](Sample-Images/Home.jpeg)
+
+### 📧 Mail Automation Agent
+![Email Agent](Sample-Images/Email.jpeg)
+
+### 📱 Social Media Agent
+![Social Agent](Sample-Images/Post.jpeg)
+
+### 🌐 Website Builder Agent
+![Website Agent](Sample-Images/Website.jpeg)
+
+---
+
 ## 🖥️ System Architecture
 
-Refer to [ARCHITECTURE.md](file:///C:/Users/rohit/OneDrive/Desktop/Agentify_main/ARCHITECTURE.md) for the detailed system architecture diagram, fallback flows, API details, and detailed execution paths.
+Refer to [ARCHITECTURE.md](file:///C:/Users/rohit/OneDrive/Desktop/Agentify_main/ARCHITECTURE.md) for fallback flows, API details, and detailed execution paths.
+
+![System Architecture](Sample-Images/Architecture.jpeg)
 
 ---
 
